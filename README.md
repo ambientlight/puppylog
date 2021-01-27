@@ -4,7 +4,7 @@ A tiny distributed log collector
 
 ## Requirements
 
-- [] It should default to reading /tmp/access.log and be overrideable
+- [ ] It should default to reading /tmp/access.log and be overrideable
 - [ ] Display stats every 10s about the traffic during those 10s: the sections of the web site with the most hits, as well as interesting summary statistics on the traffic as a whole. A section is defined as being what's before the second '/' in the resource section of the log line. For example, the section for "/pages/create" is "/pages"
 
 - [ ] Make sure a user can keep the app running and monitor the log file continuously
