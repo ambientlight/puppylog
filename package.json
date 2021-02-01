@@ -1,0 +1,28 @@
+{
+  "name": "puppylog",
+  "version": "0.0.1",
+  "description": "a tiny destributed log collection and monitoring tool",
+  "main": "index.js",
+  "dependencies": {
+    "mustache": "^4.1.0",
+    "pg": "^8.5.1"
+  },
+  "devDependencies": {
+    "@types/mustache": "^4.1.1",
+    "@types/node": "^14.14.22",
+    "@types/pg": "^7.14.9"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ambientlight/puppylog.git"
+  },
+  "author": "ambientlight",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ambientlight/puppylog/issues"
+  },
+  "homepage": "https://github.com/ambientlight/puppylog#readme"
+}

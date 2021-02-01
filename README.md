@@ -26,14 +26,14 @@ A tiny distributed log collector
 ## TODOS
 
 ### st0
-- [ ] Data models: LogGroups, LogStreams, LogRecord, Metrics, MetricGroups
-- [ ] Bash scripts for the above data models, continious aggregates
-- [ ] Crude base script that reads line-by-line space delimited logs sequentially and dumps into timescale 
+- [X] Data models: LogGroups, LogStreams, LogRecord, AlertHistory
+- [X] Bash scripts for the above data models, continious aggregates
+- [X] Crude base script that reads line-by-line space delimited logs sequentially and dumps into timescale 
 - [ ] Make sure that continious aggregates that sample every 10seconds have reasonable perf on large injection - simple count metrics
 - [ ] Database queries for formatted metrics: most hits - top 10 of COUNT metric for each root subpath. Materialized view for each url root subpath? ok as longs as sane num of them.
 
 ### st1
-- [ ] dep on time, typescript or reasonml revamps for bash scripts with knex.js
+- [ ] dep on time, typescript or reasonml revamps for bash scripts ~~with knex.js~~, no knex.js as most of timescale things we need are not wrapped there, lets use templates with sql
 - [ ] fetch latest timestamp and only parse logs after timestamp
 - [ ] allow running injector in the background -> file change observation vs timechecked?
 - [ ] allow running injector as daemon under systemd

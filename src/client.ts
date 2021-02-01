@@ -1,19 +1,24 @@
-import { createPgEventEmitter } from './PostgresPubSub'
-import { Client } from 'pg'
-import { EventEmitter } from "events"
+import { readFileSync } from 'fs' 
 
+// allows us require('whatever.sql') as strings
+require.extensions['.sql'] = function (module, filename) {
+  module.exports = readFileSync(filename, 'utf8');
+};
+
+import { Metric } from './Metric'
+import { Client } from 'pg'
+
+/*
 const client = new Client({
-    user: process.env.PGUSER,
-    host: process.env.PGHOST,
-    database: process.env.PGDATABASE,
-    password: process.env.PGPASSWORD,
+    user: process.env.PGUSER || 'postgres',
+    host: process.env.PGHOST || '192.168.8.220',
+    database: process.env.PGDATABASE || 'postgres',
+    password: process.env.PGPASSWORD || 'onesky',
     port: 5432
 })
 
 client.connect()
+*/
 
-const ipc = createPgEventEmitter(client)
-
-ipc.on('error', console.error)
-ipc.on('end', () => client.end())
-ipc.on('total_traffic_alert', msg => console.log(msg))
+const metric = new Metric('total_traffic')
+console.log(metric.createQueryString())
