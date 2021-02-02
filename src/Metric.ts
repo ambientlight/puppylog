@@ -1,7 +1,20 @@
 import { render } from 'mustache'
 import { SQLRepresentable } from "./SQLRepresentable"
+import * as ConnectionPool from './ConnectionPool'
+import { QueryResult } from 'pg'
 
 const metricTemplate = require('../sql_templates/metric.template.sql')
+const continiousAggregatesQuery = require('../sql/continuous_aggregates.sql')
+
+interface ContiniousAggregatesQueryResult { 
+  view_name: string, 
+  view_definition: string, 
+  materialization_hypertable_name: string, 
+  config: { 
+    end_offset: string, 
+    start_offset: string, 
+    mat_hypertable_id: number} 
+}
 
 const DEFAULT_METRIC_PERIOD = 60
 const DEFAULT_METRIC_START_OFFSET = 60 * 60 * 24
@@ -11,12 +24,12 @@ const DEFAULT_METRIC_START_OFFSET = 60 * 60 * 24
  * NOTE: Take into account the period that is applied to this metric
  */
 export enum MetricStatistic {
-  Sum = "COUNT",
-  Average = "AVG",
-  Min = "MIN",
-  Max = "MAX",
-  StdDev = "STDDEV",
-  Variance = "VARIANCE"
+  Sum = "count",
+  Average = "avg",
+  Min = "min",
+  Max = "max",
+  StdDev = "stddev",
+  Variance = "variance"
 }
 
 /**
@@ -87,6 +100,39 @@ export class Metric implements SQLRepresentable {
   }
 
   createQueryString(){
+    // TODO: we should escape the values we are rendering
     return render(metricTemplate, { ...this })
+  }
+
+  static async all(){
+    const connection = await ConnectionPool.sharedInstance.connect()
+    const result: QueryResult<ContiniousAggregatesQueryResult> = await connection.query(continiousAggregatesQuery)
+    const queryPattern = /SELECT time_bucket\('(?<period>.*?)'::interval,\s*logrecords\.ts\)\s*AS\s*tbucket,\s*(?<statistic>[a-z]*)\(\*\)\s*AS\s*(?<identifier>[a-z_]*)\s*.*/
+    
+    // we don't really need to have another table to store Metric metadata 
+    // as we can retrieve original queries that generated continious aggregate
+    const materializedViewFragments = result.rows
+      .map(row => ({
+        config: row.config,
+        identifier: row.view_name, 
+        query: row.view_definition.split('\n').map(line => line.trim()).join(' ')
+      })).filter(({identifier, query }) => { 
+        const match = queryPattern.exec(query) 
+        if(match === null){ 
+          console.error(`Ignored materialized view query: ${query}`)
+        }
+
+        return match !== null
+      }).map(({identifier, query, config }) => {
+        const match = queryPattern.exec(query)!
+        return {
+          period: match.groups!.period,
+          statistic: match.groups!.statistic,
+          identifier,
+          config
+        }
+      })
+
+    return materializedViewFragments
   }
 }
