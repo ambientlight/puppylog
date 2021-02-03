@@ -1,0 +1,1 @@
+SELECT job_id, application_name, schedule_interval, proc_name, config FROM timescaledb_information.jobs WHERE application_name ~ 'User-Defined Action'

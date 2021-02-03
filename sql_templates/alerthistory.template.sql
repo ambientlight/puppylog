@@ -1,0 +1,1 @@
+SELECT * from alerthistory WHERE name = '{{identifier}}'

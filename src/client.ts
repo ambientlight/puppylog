@@ -7,9 +7,12 @@ require.extensions['.sql'] = function (module, filename) {
 };
 
 import { LogRecordProperty, Metric, MetricStatistic } from './Metric'
+import { Alert } from './Alert';
+
 
 (async () => {
   
+  /*
   const period = 10
   const metric = new Metric(
     'route_breakdown',
@@ -31,9 +34,16 @@ import { LogRecordProperty, Metric, MetricStatistic } from './Metric'
   
   await metric.delete()
   console.log(metric)
+  */
 
-  //const metrics = await Metric.all()
-  //console.log(metrics)
+  const metrics = await Metric.all()
+  const metric = metrics[0]
+  const alert = new Alert(metric, 10, 'high_traffic_per_route')
+  await alert.save()
+  console.log(alert)
+  console.log(alert.isPersisted)
+  await alert.delete()
+  console.log(alert.isPersisted)
 
   ConnectionPool.sharedInstance.end()
 })()

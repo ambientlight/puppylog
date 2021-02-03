@@ -2,6 +2,7 @@ import { render } from 'mustache'
 import { withConnection } from './ConnectionPool'
 import * as ConnectionPool from './ConnectionPool'
 import { QueryResult, Client, Connection, Pool } from 'pg'
+import { parsePGInterval } from './utils'
 
 const metricTemplate = require('../sql_templates/metric.template.sql')
 const observationsQueryTemplate = require('../sql_templates/metric_observations.template.sql')
@@ -21,12 +22,6 @@ interface ContiniousAggregatesQueryResult {
 
 const DEFAULT_METRIC_PERIOD = 60
 const DEFAULT_METRIC_START_OFFSET = 60 * 60 * 24
-
-/**
- * @param interval postgres string interval HH:MM:SS
- * @returns seconds
- */
-const parsePGInterval = (interval: string) => interval.split(':').reduce((acc,time) => (60 * acc) + parseInt(time), 0)
 
 /**
  * A statistic that metric is collecting. Maps to SQL function.
@@ -126,6 +121,9 @@ export class Metric {
     refreshInterval: number | null = null,
     segmentExpression: LogRecordProperty | string = ""
   ){
+    if(identifier.length === 0){
+      throw 'Cannot instantiate Metric with empty identifier'
+    }
 
     if(period === 0){
       console.warn(`Metric has been initialized with 0-seconds period, resseting it to default ${DEFAULT_METRIC_PERIOD}`)
@@ -227,7 +225,7 @@ export class Metric {
    */
   async observations(){
     const observationsQuery = render(observationsQueryTemplate, { identifier: this.identifier })
-    const result: QueryResult<{ tbucket: string, total_logs: number }> = await ConnectionPool.sharedInstance.query(observationsQuery)
-    return result.rows.map(row => ({ ts: new Date(row.tbucket), value: row.total_logs }))
+    const result: QueryResult<{ tbucket: string, observation: number }> = await ConnectionPool.sharedInstance.query(observationsQuery)
+    return result.rows.map(row => ({ ts: new Date(row.tbucket), value: row.observation }))
   }
 }

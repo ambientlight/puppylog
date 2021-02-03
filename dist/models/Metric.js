@@ -11,14 +11,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Metric = exports.LogRecordProperty = exports.MetricStatistic = void 0;
 const mustache_1 = require("mustache");
-const ConnectionPool = require("./ConnectionPool");
-const utils_1 = require("./utils");
-const metricTemplate = require('../sql_templates/metric.template.sql');
+const ConnectionPool = require("../ConnectionPool");
+const metricTemplate = require('.../sql_templates/metric.template.sql');
 const observationsQueryTemplate = require('../sql_templates/metric_observations.template.sql');
 const continiousAggregatesQuery = require('../sql/continuous_aggregates.sql');
 const continiousAggregateInfoQueryPattern = /SELECT\s*(?<customSegmentExpression>.*)\s*,?time_bucket\('(?<period>.*?)'::interval,\s*logrecords\.ts\)\s*AS\s*tbucket,\s*(?<statistic>[a-z]*)\((?<property>[a-z_\*]*)\)\s*AS\s*(?<identifier>[a-z_]*)\s*.*/;
 const DEFAULT_METRIC_PERIOD = 60;
 const DEFAULT_METRIC_START_OFFSET = 60 * 60 * 24;
+/**
+ * @param interval postgres string interval HH:MM:SS
+ * @returns seconds
+ */
+const parsePGInterval = (interval) => interval.split(':').reduce((acc, time) => (60 * acc) + parseInt(time), 0);
 /**
  * A statistic that metric is collecting. Maps to SQL function.
  * NOTE: Take into account the period that is applied to this metric
@@ -115,9 +119,9 @@ class Metric {
         const statistic = match.groups.statistic;
         const property = match.groups.property;
         const segmentExpression = match.groups.customSegmentExpression;
-        const metric = new Metric(identifier, statistic, property, utils_1.parsePGInterval(period), utils_1.parsePGInterval(config.start_offset), utils_1.parsePGInterval(config.end_offset), 
+        const metric = new Metric(identifier, statistic, property, parsePGInterval(period), parsePGInterval(config.start_offset), parsePGInterval(config.end_offset), 
         // FIXME: need to parse this from query aswell, assume period for now
-        utils_1.parsePGInterval(period), segmentExpression.includes('AS') ? segmentExpression.split('AS')[0].trim() : segmentExpression.trim());
+        parsePGInterval(period), segmentExpression.includes('AS') ? segmentExpression.split('AS')[0].trim() : segmentExpression.trim());
         metric.hypertableId = config.mat_hypertable_id;
         return metric;
     }
