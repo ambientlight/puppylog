@@ -1,1 +1,1 @@
-SELECT * FROM {{identifier}};
+SELECT * FROM {{identifier}}

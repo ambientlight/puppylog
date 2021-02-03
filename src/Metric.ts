@@ -36,6 +36,16 @@ export enum MetricStatistic {
   Variance = "variance"
 }
 
+export const supportedStatistic: MetricStatistic[] = [
+  MetricStatistic.Sum,
+  MetricStatistic.Average,
+  MetricStatistic.Min,
+  MetricStatistic.Max,
+  MetricStatistic.StdDev,
+  MetricStatistic.Variance
+]
+
+
 export enum LogRecordProperty {
   EntireRow = "*",
   Timestamp = "ts",
@@ -48,6 +58,19 @@ export enum LogRecordProperty {
   StatusCode = "status_code",
   ResponseSize = "response_bsize"
 }
+
+export const supportedLogRecordProperties: LogRecordProperty[] = [
+  LogRecordProperty.EntireRow,
+  LogRecordProperty.Timestamp,
+  LogRecordProperty.Host,
+  LogRecordProperty.IndentLogname,
+  LogRecordProperty.User,
+  LogRecordProperty.RequestMethod,
+  LogRecordProperty.RequestRoute,
+  LogRecordProperty.RequestProto,
+  LogRecordProperty.StatusCode,
+  LogRecordProperty.ResponseSize
+]
 
 export interface CreateMetricOptions {
   identifier?: string, 
@@ -242,9 +265,9 @@ export class Metric {
   /**
    * fetches all observations for this metric
    */
-  async observations(){
+  async observations(limit = 100){
     const observationsQuery = render(observationsQueryTemplate, { identifier: this.identifier })
-    const result: QueryResult<{ tbucket: string, observation: number }> = await ConnectionPool.sharedInstance.query(observationsQuery)
+    const result: QueryResult<{ tbucket: string, observation: number }> = await ConnectionPool.sharedInstance.query(`${observationsQuery} ORDER BY tbucket DESC LIMIT ${limit}`)
     return result.rows.map(row => ({ ts: new Date(row.tbucket), value: row.observation }))
   }
 }
