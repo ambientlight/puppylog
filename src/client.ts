@@ -9,5 +9,7 @@ import { Metric } from './Metric'
 
 (async () => {
   // const metric = new Metric('total_traffic')
-  console.log(await Metric.all())
+
+  const metrics = await Metric.all()
+  console.log(metrics[0])
 })()

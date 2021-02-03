@@ -1,4 +1,4 @@
-import { Pool } from 'pg'
+import { Pool, PoolClient } from 'pg'
 
 const dbConfig = {
   user: process.env.PGUSER || 'postgres',
@@ -16,3 +16,10 @@ export const sharedInstance = new Pool({
   idleTimeoutMillis: 30000,
   max: 32
 });
+
+export async function withConnection<Res>(op: (connection: PoolClient) => Res){
+  const connection = await sharedInstance.connect()
+  const result = op(connection)
+  connection.release()
+  return result
+}

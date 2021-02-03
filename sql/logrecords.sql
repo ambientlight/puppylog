@@ -27,3 +27,4 @@ CREATE TABLE IF NOT EXISTS logrecords (
     CONSTRAINT fk_logstream_id FOREIGN KEY(logstream_id) REFERENCES logstreams(id) ON DELETE CASCADE
 );
 
+-- note we don't need to create an index on ts as timescaledb will do it for us when it replaces our table with hypertable

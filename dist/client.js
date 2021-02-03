@@ -17,5 +17,6 @@ require.extensions['.sql'] = function (module, filename) {
 const Metric_1 = require("./Metric");
 (() => __awaiter(void 0, void 0, void 0, function* () {
     // const metric = new Metric('total_traffic')
-    console.log(yield Metric_1.Metric.all());
+    const metrics = yield Metric_1.Metric.all();
+    console.log(metrics[0]);
 }))();
