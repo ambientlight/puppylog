@@ -6,7 +6,7 @@ require.extensions['.sql'] = function (module, filename) {
 };
 
 import { program } from 'commander'
-import { metricsGeneralListResponse, createDefaultMetricsAlarmsSetResponse, createMetricDetailResponse, createMetricMetaResponse, createNewMetricAndResponse } from './responses'
+import { metricsGeneralListResponse, createDefaultMetricsAlarmsSetResponse, createMetricDetailResponse, createMetricMetaResponse, createNewMetricAndResponse, alertsGeneralListResponse, createAlertDetailResponse, createAlertMetaResponse } from './responses'
 import { supportedStatistic } from './Metric';
 
 const puppylog = program
@@ -14,9 +14,14 @@ const puppylog = program
 
 const metrics = puppylog
   .command('metrics')
-//   .option('-c, --cheese <type>', 'Add the specified type of cheese', 'marble')
   .action(async args => {
     await metricsGeneralListResponse()
+  })
+
+const alerts = puppylog
+  .command('alerts')
+  .action(async args => {
+    await alertsGeneralListResponse()
   })
 
 metrics
@@ -53,14 +58,18 @@ metrics
     }
   })
 
+alerts
+  .command('get <alert_identifier>')
+  .description('display alert signal history')
+  .action(async alertId => {
+    await createAlertDetailResponse(alertId)
+  })
+
+alerts
+  .command('meta <alert_identifier>')
+  .description('display alert metadata')
+  .action(async alertId => {
+    await createAlertMetaResponse(alertId)
+  })
+
 puppylog.parse()
-
-/*
-program.parse();
-
-const options = program.opts();
-console.log('you ordered a pizza with:');
-if (options.peppers) console.log('  - peppers');
-const cheese = !options.cheese ? 'no' : options.cheese;
-console.log('  - %s cheese', cheese);
-*/
