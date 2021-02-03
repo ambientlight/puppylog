@@ -1,5 +1,5 @@
 import { parse, render } from "mustache"
-import { Metric } from "./Metric"
+import { Metric, MetricStatistic } from "./Metric"
 import * as ConnectionPool from './ConnectionPool'
 import { QueryResult } from "pg"
 
@@ -18,7 +18,8 @@ export interface UserdefinedJobsQueryResult {
     level: number,
     offset: string,
     alert_name: string,
-    metric_identifier: string
+    metric_identifier: string,
+    statistic: string
   }
 }
 
@@ -29,6 +30,12 @@ export interface AlertHistoryQueryResult {
   alert_level: string,
   observed_level: string,
   metric: string 
+}
+
+export interface CreateAlertOptions {
+  alertName?: string | null,
+  offset?: number
+  period?: number | null
 }
 
 /**
@@ -52,9 +59,14 @@ export class Alert {
   readonly alertName: string
 
   /**
-   * offset in seconds: alert will fetch the latest value above this offset
+   * offset in seconds: alert will fetch the values later then this offset and aggregate according to function
    */
   readonly offset: number
+
+  /**
+   * statistic that is applied to aggregate values later the offset
+   */
+  readonly statistic: MetricStatistic
 
   /**
    * a boundary level which exceeded will satisfy the alert
@@ -76,13 +88,22 @@ export class Alert {
    * creates a new alert for a given metric
    * @param metric a metric that alert is attached to
    */
-  constructor(metric: Metric, alertLevel: number, alertIdentifier: string, alertName: string | null = null, offset: number = DEFAULT_ALERT_OFFSET, period: number | null = null){
+  constructor(metric: Metric, alertLevel: number, alertIdentifier: string, statistic: MetricStatistic, options: CreateAlertOptions = {}){
+    const defaultOptions = {
+      alertName: null, 
+      offset: DEFAULT_ALERT_OFFSET, 
+      period: null
+    }
+
+    const opts = {...defaultOptions, ...options}
+    
     this.identifier = alertIdentifier
     this.metricIdentifier = metric.identifier
-    this.alertName = alertName || alertIdentifier
-    this.offset = offset
+    this.alertName = opts.alertName || alertIdentifier
+    this.offset = opts.offset
     this.alertLevel = alertLevel
-    this.period = period || metric.period
+    this.period = opts.period || metric.period
+    this.statistic = statistic
   }
 
   /**
@@ -103,9 +124,12 @@ export class Alert {
       { identifier: row.config.metric_identifier, period: row.schedule_interval.seconds } as Metric,
       row.config.level,
       row.proc_name,
-      row.config.alert_name,
-      parseInt(row.config.offset),
-      row.schedule_interval.seconds
+      row.config.statistic as MetricStatistic, 
+      { 
+        alertName: row.config.alert_name,
+        offset: parseInt(row.config.offset),
+        period: row.schedule_interval.seconds
+      }
     )
 
     alert.jobId = row.job_id
@@ -119,7 +143,7 @@ export class Alert {
 
   async save(){
     const _createResult = await ConnectionPool.sharedInstance.query(this.createQuery())
-    const meta: QueryResult<UserdefinedJobsQueryResult> = await ConnectionPool.sharedInstance.query(`${userdefinedJobs} AND proc_name = $1`, [this.identifier])
+    const meta: QueryResult<UserdefinedJobsQueryResult> = await ConnectionPool.sharedInstance.query(`${userdefinedJobs} AND proc_name = $1`, [this.identifier.toLowerCase()])
     this.jobId = meta.rows[0].job_id
   }
 

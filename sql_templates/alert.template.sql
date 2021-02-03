@@ -1,7 +1,8 @@
 CREATE OR REPLACE PROCEDURE {{identifier}}(job_id int, config jsonb) LANGUAGE PLPGSQL AS
 $$
 DECLARE
-    hits INT;
+    last_hits REAL;
+    agg_hits REAL;
     last_ts TIMESTAMP;
     alert_name TEXT;
     interval_offset INTERVAL;
@@ -14,10 +15,11 @@ BEGIN
     SELECT jsonb_object_field_text(config, 'level')::int INTO STRICT alert_level;
     
     BEGIN
-        SELECT tbucket, observation INTO STRICT last_ts, hits from {{metricIdentifier}} WHERE tbucket > now() - interval_offset ORDER BY tbucket DESC LIMIT 1;
-        IF hits > alert_level THEN
+        SELECT tbucket, observation INTO STRICT last_ts, last_hits FROM {{metricIdentifier}} WHERE tbucket > now() - interval_offset ORDER BY tbucket DESC LIMIT 1;
+        SELECT {{statistic}}(observation) INTO STRICT agg_hits FROM {{metricIdentifier}} WHERE tbucket > now() - interval_offset;
+        IF agg_hits > alert_level THEN
             INSERT INTO alerthistory(job_id, name, trigger_ts, alert_level, observed_level, metric) 
-            VALUES (job_id, {{identifier}}, last_ts, alert_level, hits, '{{metricIdentifier}}');
+            VALUES (job_id, '{{identifier}}', last_ts, alert_level, agg_hits, '{{metricIdentifier}}');
 
             -- pg_notify does not push (only queues notifications) when total_traffic_alert 
             -- runs under timescaledb job scheduler. can be an issue on timescaledb side? 
@@ -27,7 +29,7 @@ BEGIN
 
             -- PERFORM pg_notify('total_traffic_alert', format('{"ts":"%s", "hits":"%s"}', last_ts, hits));
         END IF;
-        RAISE NOTICE '% %', last_ts, hits;
+        RAISE NOTICE '% %', last_ts, agg_hits;
 
     EXCEPTION WHEN no_data_found THEN
         -- no requests after our timestamp or total traffic was not materialized
@@ -36,4 +38,4 @@ BEGIN
 
 END $$;
 
-SELECT add_job('{{identifier}}', '{{period}}'::interval, config => '{"alert_name":"{{alertName}}", "offset": "{{offset}}", "metric_identifier": "{{metricIdentifier}}", "level": {{alertLevel}}}');
+SELECT add_job('{{identifier}}', '{{period}}'::interval, config => '{"alert_name":"{{alertName}}", "offset": "{{offset}}", "metric_identifier": "{{metricIdentifier}}", "statistic": "{{statistic}}", "level": {{alertLevel}}}');

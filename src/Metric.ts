@@ -49,6 +49,17 @@ export enum LogRecordProperty {
   ResponseSize = "response_bsize"
 }
 
+export interface CreateMetricOptions {
+  identifier?: string, 
+  statistic?: MetricStatistic, 
+  property?: LogRecordProperty,
+  period?: number, 
+  startOffset?: number,
+  endOffset?: number | null,
+  refreshInterval?: number | null,
+  segmentExpression?: LogRecordProperty | string
+}
+
 /**
  * Essential aggregated measument of interest over a numeric sequence
  * Each metric is persisted in a form of auto-updating materialized view
@@ -113,30 +124,36 @@ export class Metric {
    */
   constructor(
     identifier: string, 
-    statistic = MetricStatistic.Sum, 
-    property = LogRecordProperty.EntireRow,
-    period = DEFAULT_METRIC_PERIOD, 
-    startOffset = DEFAULT_METRIC_START_OFFSET,
-    endOffset: number | null = null,
-    refreshInterval: number | null = null,
-    segmentExpression: LogRecordProperty | string = ""
+    options: CreateMetricOptions = {}
   ){
+    const defaultOptions = {
+      statistic: MetricStatistic.Sum, 
+      property: LogRecordProperty.EntireRow,
+      period: DEFAULT_METRIC_PERIOD, 
+      startOffset: DEFAULT_METRIC_START_OFFSET,
+      endOffset: null,
+      refreshInterval: null,
+      segmentExpression: ""  
+    }
+
+    const opts = {...defaultOptions, ...options}
+
     if(identifier.length === 0){
       throw 'Cannot instantiate Metric with empty identifier'
     }
 
-    if(period === 0){
+    if(opts.period === 0){
       console.warn(`Metric has been initialized with 0-seconds period, resseting it to default ${DEFAULT_METRIC_PERIOD}`)
     }
 
     this.identifier = identifier
-    this.statistic = statistic
-    this.property = property
-    this.period = period || DEFAULT_METRIC_PERIOD
-    this.startOffset = startOffset
-    this.endOffset = endOffset === null ? this.period : endOffset
-    this.refreshInterval = refreshInterval || this.period
-    this.segmentExpression = segmentExpression
+    this.statistic = opts.statistic
+    this.property = opts.property
+    this.period = opts.period || DEFAULT_METRIC_PERIOD
+    this.startOffset = opts.startOffset
+    this.endOffset = opts.endOffset === null ? this.period : opts.endOffset
+    this.refreshInterval = opts.refreshInterval || this.period
+    this.segmentExpression = opts.segmentExpression
   }
 
   /**
@@ -150,7 +167,7 @@ export class Metric {
   createQuery(){
     // TODO: we should escape the values we are rendering
     // renaming class property names requires doing the same in template
-    return render(metricTemplate, { ...this, customSegmentExpression: this.segmentExpression + ',' })
+    return render(metricTemplate, { ...this, customSegmentExpression: this.segmentExpression ? (this.segmentExpression + ',') : '' })
   }
 
   /** a query to list all continious aggregates with job metadata */
@@ -179,14 +196,16 @@ export class Metric {
     
     const metric = new Metric(
       identifier, 
-      statistic as MetricStatistic, 
-      property as LogRecordProperty,
-      parsePGInterval(period),
-      parsePGInterval(config.start_offset),
-      parsePGInterval(config.end_offset),
-      // FIXME: need to parse this from query aswell, assume period for now
-      parsePGInterval(period),
-      segmentExpression.includes('AS') ? segmentExpression.split('AS')[0].trim() : segmentExpression.trim()
+      {
+        statistic: statistic as MetricStatistic, 
+        property: property as LogRecordProperty,
+        period: parsePGInterval(period),
+        startOffset: parsePGInterval(config.start_offset),
+        endOffset: parsePGInterval(config.end_offset),
+        // FIXME: need to parse this from query aswell, assume period for now
+        refreshInterval: parsePGInterval(period),
+        segmentExpression: segmentExpression.includes('AS') ? segmentExpression.split('AS')[0].trim() : segmentExpression.trim()
+      }
     )
 
     metric.hypertableId = config.mat_hypertable_id
@@ -211,7 +230,7 @@ export class Metric {
     const [createMaterializedViewQuery, addRefreshPolicyQuery, ..._] = this.createQuery().split(';')
     const _createMaterializedViewResult = await ConnectionPool.sharedInstance.query(createMaterializedViewQuery)
     const _addPolicyResult = await ConnectionPool.sharedInstance.query(addRefreshPolicyQuery)
-    const meta = await ConnectionPool.sharedInstance.query(`${continiousAggregatesQuery} WHERE view_name = $1`, [this.identifier])
+    const meta = await ConnectionPool.sharedInstance.query(`${continiousAggregatesQuery} WHERE view_name = $1`, [this.identifier.toLowerCase()])
     this.hypertableId = meta.rows[0].config.mat_hypertable_id
   }
 

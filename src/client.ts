@@ -36,14 +36,32 @@ import { Alert } from './Alert';
   console.log(metric)
   */
 
-  const metrics = await Metric.all()
-  const metric = metrics[0]
-  const alert = new Alert(metric, 10, 'high_traffic_per_route')
+  
+  // const metrics = await Metric.all()
+  // const metric = metrics[0]
+  // console.log(metric)
+  
+  // const alert = new Alert(metric, 10, 'high_traffic', MetricStatistic.Average, null, 60 * 60 * 24 * 360)
+  // console.log(alert.createQuery())
+
+  /*
   await alert.save()
   console.log(alert)
   console.log(alert.isPersisted)
   await alert.delete()
   console.log(alert.isPersisted)
+  console.log(await Alert.all())
+  */
 
-  ConnectionPool.sharedInstance.end()
+  /*
+  const alert = new Alert(metric, 10, 'high_traffic_per_route', MetricStatistic.Average)
+  await alert.save()
+  console.log(alert)
+  console.log(alert.isPersisted)
+  await alert.delete()
+  console.log(alert.isPersisted)
+  console.log(await Alert.all())
+  */
+
+  // ConnectionPool.sharedInstance.end()
 })()
