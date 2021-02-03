@@ -11,11 +11,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Metric = exports.LogRecordProperty = exports.MetricStatistic = void 0;
 const mustache_1 = require("mustache");
-const ConnectionPool_1 = require("./ConnectionPool");
+const ConnectionPool = require("./ConnectionPool");
 const metricTemplate = require('../sql_templates/metric.template.sql');
 const observationsQueryTemplate = require('../sql_templates/metric_observations.template.sql');
 const continiousAggregatesQuery = require('../sql/continuous_aggregates.sql');
-const continiousAggregateInfoQueryPattern = /SELECT time_bucket\('(?<period>.*?)'::interval,\s*logrecords\.ts\)\s*AS\s*tbucket,\s*(?<statistic>[a-z]*)\((?<property>[a-z_\*]*)\)\s*AS\s*(?<identifier>[a-z_]*)\s*.*/;
+const continiousAggregateInfoQueryPattern = /SELECT\s*(?<customSegmentExpression>.*)\s*,?time_bucket\('(?<period>.*?)'::interval,\s*logrecords\.ts\)\s*AS\s*tbucket,\s*(?<statistic>[a-z]*)\((?<property>[a-z_\*]*)\)\s*AS\s*(?<identifier>[a-z_]*)\s*.*/;
 const DEFAULT_METRIC_PERIOD = 60;
 const DEFAULT_METRIC_START_OFFSET = 60 * 60 * 24;
 /**
@@ -66,7 +66,7 @@ class Metric {
      * @param statistic static of interest
      * @param period metric period in seconds
      */
-    constructor(identifier, statistic = MetricStatistic.Sum, property = LogRecordProperty.EntireRow, period = DEFAULT_METRIC_PERIOD, startOffset = DEFAULT_METRIC_START_OFFSET, endOffset = null, refreshInterval = null) {
+    constructor(identifier, statistic = MetricStatistic.Sum, property = LogRecordProperty.EntireRow, period = DEFAULT_METRIC_PERIOD, startOffset = DEFAULT_METRIC_START_OFFSET, endOffset = null, refreshInterval = null, segmentExpression = "") {
         /**
          * identifier of timescaledb hypertable, set when metric gets persisted
          */
@@ -81,6 +81,7 @@ class Metric {
         this.startOffset = startOffset;
         this.endOffset = endOffset === null ? this.period : endOffset;
         this.refreshInterval = refreshInterval || this.period;
+        this.segmentExpression = segmentExpression;
     }
     /**
      * is current metric persisted and materialized?
@@ -92,7 +93,7 @@ class Metric {
     createQuery() {
         // TODO: we should escape the values we are rendering
         // renaming class property names requires doing the same in template
-        return mustache_1.render(metricTemplate, Object.assign({}, this));
+        return mustache_1.render(metricTemplate, Object.assign(Object.assign({}, this), { customSegmentExpression: this.segmentExpression + ',' }));
     }
     /** a query to list all continious aggregates with job metadata */
     static listQuery() {
@@ -114,9 +115,10 @@ class Metric {
         const period = match.groups.period;
         const statistic = match.groups.statistic;
         const property = match.groups.property;
+        const segmentExpression = match.groups.customSegmentExpression;
         const metric = new Metric(identifier, statistic, property, parsePGInterval(period), parsePGInterval(config.start_offset), parsePGInterval(config.end_offset), 
         // FIXME: need to parse this from query aswell, assume period for now
-        parsePGInterval(period));
+        parsePGInterval(period), segmentExpression.includes('AS') ? segmentExpression.split('AS')[0].trim() : segmentExpression.trim());
         metric.hypertableId = config.mat_hypertable_id;
         return metric;
     }
@@ -125,12 +127,29 @@ class Metric {
      */
     static all() {
         return __awaiter(this, void 0, void 0, function* () {
-            return ConnectionPool_1.withConnection((connection) => __awaiter(this, void 0, void 0, function* () {
-                // we don't really need to have another table to store Metric metadata 
-                // as we can retrieve original queries that generated continious aggregate
-                const result = yield connection.query(continiousAggregatesQuery);
-                return result.rows.map(row => Metric.fromRepsentation(row)).filter(repr => repr !== null);
-            }));
+            // we don't really need to have another table to store Metric metadata 
+            // as we can retrieve original queries that generated continious aggregate
+            const result = yield ConnectionPool.sharedInstance.query(continiousAggregatesQuery);
+            return result.rows.map(row => Metric.fromRepsentation(row)).filter(repr => repr !== null);
+        });
+    }
+    /**
+     * persists this Metric by creating and populating timescale continuous aggregate
+     */
+    save() {
+        return __awaiter(this, void 0, void 0, function* () {
+            // we need to split into individual queries as pg will automatically wrap into transaction otherwise
+            const [createMaterializedViewQuery, addRefreshPolicyQuery, ..._] = this.createQuery().split(';');
+            const _createMaterializedViewResult = yield ConnectionPool.sharedInstance.query(createMaterializedViewQuery);
+            const _addPolicyResult = yield ConnectionPool.sharedInstance.query(addRefreshPolicyQuery);
+            const meta = yield ConnectionPool.sharedInstance.query(`${continiousAggregatesQuery} WHERE view_name = $1`, [this.identifier]);
+            this.hypertableId = meta.rows[0].config.mat_hypertable_id;
+        });
+    }
+    delete() {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield ConnectionPool.sharedInstance.query(mustache_1.render('DROP MATERIALIZED VIEW {{id}}', { id: this.identifier }));
+            this.hypertableId = null;
         });
     }
     /**
@@ -139,10 +158,8 @@ class Metric {
     observations() {
         return __awaiter(this, void 0, void 0, function* () {
             const observationsQuery = mustache_1.render(observationsQueryTemplate, { identifier: this.identifier });
-            return ConnectionPool_1.withConnection((connection) => __awaiter(this, void 0, void 0, function* () {
-                const result = yield connection.query(observationsQuery);
-                return result.rows.map(row => ({ ts: new Date(row.tbucket), value: row.total_logs }));
-            }));
+            const result = yield ConnectionPool.sharedInstance.query(observationsQuery);
+            return result.rows.map(row => ({ ts: new Date(row.tbucket), value: row.total_logs }));
         });
     }
 }

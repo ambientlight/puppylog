@@ -10,13 +10,28 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs_1 = require("fs");
+const ConnectionPool = require("./ConnectionPool");
 // allows us require('whatever.sql') as strings
 require.extensions['.sql'] = function (module, filename) {
     module.exports = fs_1.readFileSync(filename, 'utf8');
 };
 const Metric_1 = require("./Metric");
 (() => __awaiter(void 0, void 0, void 0, function* () {
-    // const metric = new Metric('total_traffic')
-    const metrics = yield Metric_1.Metric.all();
-    console.log(metrics[0]);
+    const period = 10;
+    const metric = new Metric_1.Metric('route_breakdown', Metric_1.MetricStatistic.Sum, Metric_1.LogRecordProperty.EntireRow, 
+    // period
+    period, 
+    // start offset
+    60 * 60 * 24, 
+    // end offset
+    period, 
+    // refresh interval
+    period, `split_part(request_route, '/', 2)`);
+    yield metric.save();
+    console.log(metric);
+    yield metric.delete();
+    console.log(metric);
+    //const metrics = await Metric.all()
+    //console.log(metrics)
+    ConnectionPool.sharedInstance.end();
 }))();

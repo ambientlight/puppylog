@@ -1,12 +1,13 @@
 import { render } from 'mustache'
 import { withConnection } from './ConnectionPool'
-import { QueryResult } from 'pg'
+import * as ConnectionPool from './ConnectionPool'
+import { QueryResult, Client, Connection, Pool } from 'pg'
 
 const metricTemplate = require('../sql_templates/metric.template.sql')
 const observationsQueryTemplate = require('../sql_templates/metric_observations.template.sql')
 
 const continiousAggregatesQuery = require('../sql/continuous_aggregates.sql')
-const continiousAggregateInfoQueryPattern = /SELECT time_bucket\('(?<period>.*?)'::interval,\s*logrecords\.ts\)\s*AS\s*tbucket,\s*(?<statistic>[a-z]*)\((?<property>[a-z_\*]*)\)\s*AS\s*(?<identifier>[a-z_]*)\s*.*/
+const continiousAggregateInfoQueryPattern = /SELECT\s*(?<customSegmentExpression>.*)\s*,?time_bucket\('(?<period>.*?)'::interval,\s*logrecords\.ts\)\s*AS\s*tbucket,\s*(?<statistic>[a-z]*)\((?<property>[a-z_\*]*)\)\s*AS\s*(?<identifier>[a-z_]*)\s*.*/
     
 interface ContiniousAggregatesQueryResult { 
   view_name: string, 
@@ -103,6 +104,12 @@ export class Metric {
   readonly property: LogRecordProperty
 
   /**
+   * the metrics will be normally grouped based on time buckets (period), 
+   * use a segment expression when grouping based on combination of values is needed
+   */
+  readonly segmentExpression: LogRecordProperty | string
+
+  /**
    * creates a new metric but DOES NOT PERSIST it, call save() to persist
    * 
    * @param identifier unique metric identifier
@@ -116,7 +123,8 @@ export class Metric {
     period = DEFAULT_METRIC_PERIOD, 
     startOffset = DEFAULT_METRIC_START_OFFSET,
     endOffset: number | null = null,
-    refreshInterval: number | null = null
+    refreshInterval: number | null = null,
+    segmentExpression: LogRecordProperty | string = ""
   ){
 
     if(period === 0){
@@ -130,6 +138,7 @@ export class Metric {
     this.startOffset = startOffset
     this.endOffset = endOffset === null ? this.period : endOffset
     this.refreshInterval = refreshInterval || this.period
+    this.segmentExpression = segmentExpression
   }
 
   /**
@@ -143,7 +152,7 @@ export class Metric {
   createQuery(){
     // TODO: we should escape the values we are rendering
     // renaming class property names requires doing the same in template
-    return render(metricTemplate, { ...this })
+    return render(metricTemplate, { ...this, customSegmentExpression: this.segmentExpression + ',' })
   }
 
   /** a query to list all continious aggregates with job metadata */
@@ -168,7 +177,8 @@ export class Metric {
     const period = match!.groups!.period
     const statistic = match!.groups!.statistic
     const property = match!.groups!.property
-
+    const segmentExpression = match!.groups!.customSegmentExpression
+    
     const metric = new Metric(
       identifier, 
       statistic as MetricStatistic, 
@@ -177,7 +187,8 @@ export class Metric {
       parsePGInterval(config.start_offset),
       parsePGInterval(config.end_offset),
       // FIXME: need to parse this from query aswell, assume period for now
-      parsePGInterval(period)
+      parsePGInterval(period),
+      segmentExpression.includes('AS') ? segmentExpression.split('AS')[0].trim() : segmentExpression.trim()
     )
 
     metric.hypertableId = config.mat_hypertable_id
@@ -188,12 +199,27 @@ export class Metric {
    * fetches all persisted metrics
    */
   static async all(){
-    return withConnection(async connection => {
-      // we don't really need to have another table to store Metric metadata 
-      // as we can retrieve original queries that generated continious aggregate
-      const result: QueryResult<ContiniousAggregatesQueryResult> = await connection.query(continiousAggregatesQuery)
-      return result.rows.map(row => Metric.fromRepsentation(row)).filter(repr => repr !== null) as Metric[]
-    })
+    // we don't really need to have another table to store Metric metadata 
+    // as we can retrieve original queries that generated continious aggregate
+    const result: QueryResult<ContiniousAggregatesQueryResult> = await ConnectionPool.sharedInstance.query(continiousAggregatesQuery)
+    return result.rows.map(row => Metric.fromRepsentation(row)).filter(repr => repr !== null) as Metric[]
+  }
+
+  /**
+   * persists this Metric by creating and populating timescale continuous aggregate
+   */
+  async save(){
+    // we need to split into individual queries as pg will automatically wrap into transaction otherwise
+    const [createMaterializedViewQuery, addRefreshPolicyQuery, ..._] = this.createQuery().split(';')
+    const _createMaterializedViewResult = await ConnectionPool.sharedInstance.query(createMaterializedViewQuery)
+    const _addPolicyResult = await ConnectionPool.sharedInstance.query(addRefreshPolicyQuery)
+    const meta = await ConnectionPool.sharedInstance.query(`${continiousAggregatesQuery} WHERE view_name = $1`, [this.identifier])
+    this.hypertableId = meta.rows[0].config.mat_hypertable_id
+  }
+
+  async delete(){
+    await ConnectionPool.sharedInstance.query(render('DROP MATERIALIZED VIEW {{id}}', {id: this.identifier}))
+    this.hypertableId = null
   }
 
   /**
@@ -201,9 +227,7 @@ export class Metric {
    */
   async observations(){
     const observationsQuery = render(observationsQueryTemplate, { identifier: this.identifier })
-    return withConnection(async connection => {
-      const result: QueryResult<{ tbucket: string, total_logs: number }> = await connection.query(observationsQuery)
-      return result.rows.map(row => ({ ts: new Date(row.tbucket), value: row.total_logs }))
-    })
+    const result: QueryResult<{ tbucket: string, total_logs: number }> = await ConnectionPool.sharedInstance.query(observationsQuery)
+    return result.rows.map(row => ({ ts: new Date(row.tbucket), value: row.total_logs }))
   }
 }
