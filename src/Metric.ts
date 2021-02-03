@@ -268,6 +268,15 @@ export class Metric {
   async observations(limit = 100){
     const observationsQuery = render(observationsQueryTemplate, { identifier: this.identifier })
     const result: QueryResult<{ tbucket: string, observation: number }> = await ConnectionPool.sharedInstance.query(`${observationsQuery} ORDER BY tbucket DESC LIMIT ${limit}`)
-    return result.rows.map(row => ({ ts: new Date(row.tbucket), value: row.observation }))
+    return result.rows.map(row => {
+      const customProp = Array.from(Object.entries(row)).find(([key, val]) => !['tbucket', 'observation'].includes(key))
+      const res: { ts: Date, value: number, custom?: any } = ({ ts: new Date(row.tbucket), value: row.observation })
+      if(customProp !== undefined){
+        const [customKey, customValue] = customProp
+        res.custom = customValue
+      }
+      
+      return res
+    })
   }
 }

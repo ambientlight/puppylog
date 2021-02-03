@@ -117,7 +117,7 @@ export const createMetricDetailResponse = async (metricId: string) => {
       } else {
         const result = [
           `Metric(${metricId}):`,
-          ...observations.map(obs => `${obs.ts.toISOString()}: ${obs.value}`)
+          ...observations.map(obs => `${obs.ts.toISOString()}${obs.custom ? ',' + obs.custom : ''}: ${obs.value}`)
         ].join('\n')
         console.log(result)
       }
