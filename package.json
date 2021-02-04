@@ -5,11 +5,13 @@
   "main": "index.js",
   "dependencies": {
     "commander": "^7.0.0",
+    "event-stream": "^4.0.1",
     "mustache": "^4.1.0",
     "pg": "^8.5.1"
   },
   "devDependencies": {
     "@types/commander": "^2.12.2",
+    "@types/event-stream": "^3.3.34",
     "@types/mustache": "^4.1.1",
     "@types/node": "^14.14.22",
     "@types/pg": "^7.14.9",

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# this was meant for quick injection test
+# most likely you want to LOOK INTO src/collector.ts that should be used a log injector 
+#
 # usage: ./dumo_log.sh sample.log [loggroup_id]
 
 if [[ "$#" -ne 1 ]]; then
@@ -20,7 +23,6 @@ if [[ -z "${logstream_id}" ]]; then
     logstream_id=$(psql -t -c "SELECT id FROM logstreams WHERE source_uri = '${logstream_source_uri}' AND loggroup_id = 1;" | tr -d '[:space:]')
 fi
 
-# quick injection test
 cat "$1" | while read line || [[ -n $line ]]; do
     no_dq=$(echo "$line" | sed 's/\"//g')
     arr=($no_dq)

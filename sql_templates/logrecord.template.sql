@@ -1,0 +1,2 @@
+INSERT INTO logrecords (ts, logstream_id, host, indent_logname, ruser, request_method, request_route, request_proto, status_code, response_bsize)
+VALUES (TO_TIMESTAMP('{{ts}}'), {{logStreamId}}, '{{host}}', '{{{indent_logname}}}', '{{ruser}}', '{{request_method}}', '{{{request_route}}}', '{{{request_proto}}}', {{status_code}}, {{response_bsize}});

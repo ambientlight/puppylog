@@ -6,6 +6,8 @@
 psql < ./sql/loggroups.sql
 psql < ./sql/logstreams.sql
 psql < ./sql/logrecords.sql
+# generate default loggroup
+psql -t -c "INSERT INTO loggroups (name) VALUES ('default');"
 
 if [[ "$1" == "--distributed" ]]; then 
     psql < ./sql/create_dist_hypertables.sql

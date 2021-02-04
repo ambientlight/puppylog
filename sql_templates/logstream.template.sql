@@ -1,0 +1,1 @@
+INSERT INTO logstreams (source_uri, loggroup_id) VALUES ('{{{sourceURI}}}', {{logGroupId}})
