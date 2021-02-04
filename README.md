@@ -1,64 +1,201 @@
 ## Puppylog
 
-A tiny distributed log collector
+A tiny distributed log collector and monitor build on top of timescaledb 2.0
+
+## Installation
+
+### 0. Install a desired flavour of timescaledb 2.0
+
+Option #1: Follow the installation guide at https://docs.timescale.com/latest/getting-started/installation
+
+Option #2: Setup distributed timescaledb on kubernetes via helms from https://github.com/timescale/timescaledb-kubernetes/tree/master/charts/timescaledb-multinode
+
+I will strongly recommend going with [microk8s](https://microk8s.io/) flavour of kubernetes as it will be faster to setup a test multinode cluster that way.
+
+### 1. Clone, install dependencies and build
+
+You need to have git, node and npm available at PATH, then
+
+```
+# private repo, email me for the access or you already have the tarbar
+git clone https://github.com/ambientlight/puppylog
+cd puppylog
+
+# or yarn install
+npm install
+npm run build
+```
+
+### 2. IMPORTANT! Make sure postgres enviroment variable are set at path appropeately or you access psql direclty
+
+```
+export PGPASSWORD=your_password
+export PGHOST=your_host
+export PGUSER=your_user
+export PGDATABASE=your_database
+```
+
+### 3. bootstap the database model
+
+```
+# pass --distributed for multinode setup with distributed hypetables (when setuped on kubernetes)
+./bootstrap_model.sh
+```
+
+## Quickstart
+
+In first terminal window:
+```
+node ./dist/monotir.js metrics create --default
+node ./dist/monitor.js alerts observe
+```
+
+In second terminal window run collector in watch mode:
+```
+node ./dist/collector.js -s test.log --watch
+```
+
+In third terminal window, pipe new logs into test, do this enough to trigger the default alarm
+```
+cat sample.log > test.log
+```
+
+## Usage
+
+Consists of two command line utilities: collector to inject log streams into database, and monitor to monitor metrics and alerts. Monitor metrics and alerts are flexible, you can create metrics based on different statistics and property and same way with alerts too.
+
+Collecting log streams:
+
+```
+$ node ./dist/collector.js --help
+
+Usage: collector [options]
+
+Puppylog collector
+
+Options:
+  -s, --source <source path>  source log path (default: "/tmp/access.log")
+  -w, --watch                 continiously monitor file changes (default: false)
+  -n, --now                   replace timestamp in all logs to now (default: false)
+  -r, --redirect_psql_out     redirect psql stdout to process.stdout (default: false)
+  -h, --help                  display help for command
+
+
+Example:
+node ./dist/collector.js -s test.log --watch
+```
+
+Monitor:
+```
+$ node ./dist/monitor.js --help
+
+Puppylog(A tiny distributed log collector) monitor
+
+Options:
+  -h, --help      display help for command
+
+Commands:
+  metrics
+  alerts
+  help [command]  display help for command
+
+```
+
+Viewing and creating metrics: 
+```
+$ node ./dist/monitor.js metrics --help
+
+Usage: monitor metrics [options] [command]
+
+Options:
+  -h, --help                 display help for command
+
+Commands:
+  get <metrics_identifier>   display latest metric observations
+  meta <metrics_identifier>  display metric metadata
+  create [options]           create new metrics
+
+Examples:
+node ./dist/monotir.js metrics create --default
+node ./dist/monitor.js metrics create -id magic -s count --prop \* --period 60 --refresh_rate 60
+```
+
+Viewing alerts (no custom creation for alerts just yet escape through code):
+```
+$ node ./dist/monitor.js alerts
+
+Available alerts:
+totaltraffic
+
+To observe all alert statuses run:
+monitor alerts observe
+
+To view alert details run:
+monitor alerts get <alert name>
+monitor alerts meta <alert name>
+```
 
 ## Requirements
 
-- [ ] It should default to reading /tmp/access.log and be overrideable
-- [ ] Display stats every 10s about the traffic during those 10s: the sections of the web site with the most hits, as well as interesting summary statistics on the traffic as a whole. A section is defined as being what's before the second '/' in the resource section of the log line. For example, the section for "/pages/create" is "/pages"
+- [X] It should default to reading /tmp/access.log and be overrideable
+- [X] Display stats every 10s about the traffic during those 10s: the sections of the web site with the most hits, as well as interesting summary statistics on the traffic as a whole. A section is defined as being what's before the second '/' in the resource section of the log line. For example, the section for "/pages/create" is "/pages"
 
-- [ ] Make sure a user can keep the app running and monitor the log file continuously
+- [X] Make sure a user can keep the app running and monitor the log file continuously
 
-- [ ] Whenever total traffic for the past 2 minutes exceeds a certain number on average, print or display a message saying that “High traffic generated an alert - hits = {value}, triggered at {time}”. The default threshold should be 10 requests per second, and should be overridable
+- [X] Whenever total traffic for the past 2 minutes exceeds a certain number on average, print or display a message saying that “High traffic generated an alert - hits = {value}, triggered at {time}”. The default threshold should be 10 requests per second, and should be overridable
 
-- [ ] Whenever the total traffic drops again below that value on average for the past 2 minutes, print or display another message detailing when the alert recovered
+- [X] Whenever the total traffic drops again below that value on average for the past 2 minutes, print or display another message detailing when the alert recovered
 
-- [ ] Write a test for the alerting logic
-- [ ] Explain how you’d improve on this application design
+- [ ] Write a test for the alerting logic (not yet:( )
+- [X] Explain how you’d improve on this application design
 
-## Why timescale is selected for this problem
+## Architecture
 
-1. Built-in sharding 
-2. Auto-archivation of historical data
-3. Materialized views that autoupdate (continious aggregates)
-4. as extension to postgres, we can still use all awesome postgres addtional sugar, such as its pubsub.
+Timescaledb has been selected as database backend for this as it is generally a reasonable datastore purposely-build to store and scale timeseries data in timebased chunks (hypertables). With the release of timescaledb 2.0 we can have an out-of-the box multinode setup making seting a scalable infra way easier.
+Also timescaledb adds features missing to postgresql such as build-in job scheduler, which allows to perform the entire aggregation and alerting logic on database level with clients being just injectors or viewers and not handling aggregation of potentially large data themlelves.
 
-## TODOS
+The disadvantage is here is that we build this with very specific features of timescaledb(continious aggregates, automated jobs, distributed hypertables) that will be make it difficult to migrate from. Also ACID guarantees makes write probably somehow slower on scale then NoSQL timeseries database offerings.
+
+## Models
+
+Check default metrics and alerts firts at [/src/defaults.ts](/src/defaults.ts), Then
+check [/src/Metrics.ts](/src/Metrics.ts), [/src/LogStream.ts](/src/LogStream.ts), [/src/LogRecord.ts](/src/,LogRecord.ts)
+
+LogRecords and Alert signal history are the only things that are persisted in form of tables. Metrics populate a continous aggregates (autoupdating materialized view stored in schards) and Alert exist in form of a period job and stored postgres procedure
+
+## Further improvements
+* allow adding custom alerts
+* delete functionality for alerts and metrics
+* This is logger has scalability in mind though I haven't tested kubernetes setup much (I have preconfigured cluster here), this needs larger and better scalability tests
+* now only internal facing - we will need a backend layer with Auth since clients are now directly facing the DB and can do whatever.
+* integrate a popular visualization tool on top like graphana, that should integrate ok with kubernetes setup
+* Build out functionality for loggroups since several applications likely will have a set of log files to stream from (loggroups exist in the model but no functionality associate with it)
+
+
+# TODOS:
 
 ### st0
 - [X] Data models: LogGroups, LogStreams, LogRecord, AlertHistory
 - [X] Bash scripts for the above data models, continious aggregates
 - [X] Crude base script that reads line-by-line space delimited logs sequentially and dumps into timescale 
-- [ ] Make sure that continious aggregates that sample every 10seconds have reasonable perf on large injection - simple count metrics
-- [ ] Database queries for formatted metrics: most hits - top 10 of COUNT metric for each root subpath. Materialized view for each url root subpath? ok as longs as sane num of them.
+- [X] Make sure that continious aggregates that sample every 10seconds have reasonable perf on large injection - simple count metrics
+- [X] Database queries for formatted metrics: most hits - top 10 of COUNT metric for each root subpath. Materialized view for each url root subpath? ok as longs as sane num of them.
 
 ### st1
 - [ ] dep on time, typescript or reasonml revamps for bash scripts ~~with knex.js~~, no knex.js as most of timescale things we need are not wrapped there, lets use templates with sql
-- [ ] fetch latest timestamp and only parse logs after timestamp
-- [ ] allow running injector in the background -> file change observation vs timechecked?
+- [X] fetch latest timestamp and only parse logs after timestamp
+- [X] allow running injector in the continiously
 - [ ] allow running injector as daemon under systemd
 - [ ] allow customizing input log file, clf format in logs, filter out invalid log lines, don't crash on them, dump invalid lines to stderr
 - [ ]  basic textual tabular alert view with a seperate console tool
 - [ ]  basic test coverage
 
 ### st2
-- [ ] test PG_NOTIFY on trigger  https://stackoverflow.com/questions/5412474/using-pg-notify-in-postgresql-trigger-function
 - [ ] wrappers for pubsub
-- [ ] alert recovered in stateless query
-- [ ] docker for single node timescaledb deployment
-- [ ] kubernetes for scalable -> guide with microk8s
-- [ ] continiously rewrite the stdout if possible
-- [ ] Explain better the choice of timescale in README
+- [X] alert recovered in stateless query
+- [X] continiously rewrite the stdout if possible
+- [X] Explain better the choice of timescale in README
 - [ ] load test (with screen capture)
 
 ### st3
 - [ ] integrate graphana on top
-
-## Sample logs
-
-```
-127.0.0.1 - james [09/May/2018:16:00:39 +0000] "GET /report HTTP/1.0" 200 123
-127.0.0.1 - jill [09/May/2018:16:00:41 +0000] "GET /api/user HTTP/1.0" 200 234
-127.0.0.1 - frank [09/May/2018:16:00:42 +0000] "POST /api/user HTTP/1.0" 200 34
-127.0.0.1 - mary [09/May/2018:16:00:42 +0000] "POST /api/user HTTP/1.0" 503 12
-```
