@@ -1,1 +1,1 @@
-SELECT * from alerthistory WHERE name = '{{identifier}}'
+SELECT * from alerthistory WHERE name = '{{identifier}}' ORDER BY trigger_ts DESC

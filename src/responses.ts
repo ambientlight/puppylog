@@ -3,6 +3,7 @@ import * as ConnectionPool from './ConnectionPool';
 import { totalTrafficPerRoute, totalTraffic, totalTrafficAlert } from './defaults'
 import { Alert } from './Alert';
 import { sign } from 'crypto';
+import { parse } from 'mustache';
 
 export const metricsGeneralListResponse = async () => {
   try {
@@ -162,6 +163,9 @@ export const alertsGeneralListResponse = async () => {
 
     result += [
       '\n',
+      'To observe all alert statuses run:',
+      'monitor alerts observe',
+      '',
       'To view alert details run:',
       'monitor alerts get <alert name>',
       'monitor alerts meta <alert name>'
@@ -212,4 +216,38 @@ export const createAlertMetaResponse = async (alertId: string) => {
   } finally {
     ConnectionPool.sharedInstance.end()
   }
+}
+
+export const observeAlerts = async (args: { refresh_rate: string }) => {
+  if(args.refresh_rate.length == 0 || isNaN(args.refresh_rate as unknown as number)){
+    console.error('Invalid refresh rate: needs to be a numeric value (seconds)')
+    return
+  }
+
+  const refreshRate = parseInt(args.refresh_rate)
+  const alerts = await Alert.all()
+  if(alerts.length == 0){
+    console.log([
+      'No alerts have been configured. Consider running:',
+      'monitor metrics create --default'
+    ].join('\n'))
+    return
+  }
+
+  let result = `${new Date()}\n`
+  for(const alert of alerts){
+    const signals = await alert.signals()
+    if(signals.length == 0){
+      result += `Alert(${alert.identifier}): All good!!!\n`
+    } else {
+      const status = signals[0].trigger_ts > (new Date(Date.now() - alert.offset * 1000))
+        ? 'Ringing a bell!!!'
+        : 'Recoved'
+
+      result += `Alert(${alert.identifier}): ${status}, Last signal at ${signals[0].trigger_ts.toISOString()}, value: ${signals[0].observed_level} (above ${signals[0].alert_level})\n`
+    }
+  }
+
+  console.log(result)
+  setTimeout(() => observeAlerts(args), refreshRate * 1000)
 }

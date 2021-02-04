@@ -55,7 +55,7 @@ export class LogRecord {
     this.response_bsize = options.response_bsize
   }
 
-  static fromCLF(logStreamId: number, line: string): LogRecord | null {
+  static fromCLF(logStreamId: number, line: string, forceNow = false): LogRecord | null {
     const group: CLFGroup | undefined = clf.exec(line)?.groups
     if(group === undefined){
       return null
@@ -68,7 +68,7 @@ export class LogRecord {
       return null
     }
 
-    if(group.date === undefined || group.date.length == 0){
+    if(!forceNow && (group.date === undefined || group.date.length == 0)){
       return null
     }
 
@@ -77,7 +77,7 @@ export class LogRecord {
 
     // replace the first ';' to split date from time so Date can parse it directly
     const dateString = `${group.date} ${group.timezone || ''}`.replace(':', ' ')
-    const ts = new Date(dateString)
+    const ts = forceNow ? new Date() : new Date(dateString)
     if(ts instanceof Date && !isNaN(ts as unknown as number)){
       return new LogRecord(ts, logStreamId, {
         ...group, 

@@ -6,7 +6,7 @@ require.extensions['.sql'] = function (module, filename) {
 };
 
 import { program } from 'commander'
-import { metricsGeneralListResponse, createDefaultMetricsAlarmsSetResponse, createMetricDetailResponse, createMetricMetaResponse, createNewMetricAndResponse, alertsGeneralListResponse, createAlertDetailResponse, createAlertMetaResponse } from './responses'
+import { metricsGeneralListResponse, createDefaultMetricsAlarmsSetResponse, createMetricDetailResponse, createMetricMetaResponse, createNewMetricAndResponse, alertsGeneralListResponse, createAlertDetailResponse, createAlertMetaResponse, observeAlerts } from './responses'
 import { supportedStatistic } from './Metric';
 
 const puppylog = program
@@ -70,6 +70,14 @@ alerts
   .description('display alert metadata')
   .action(async alertId => {
     await createAlertMetaResponse(alertId)
+  })
+
+alerts
+  .command('observe')
+  .description('live observe the alert statuses')
+  .option('-rr, --refresh_rate [refresh]', 'refresh rate (seconds)', '10')
+  .action(async (args) => {
+    await observeAlerts(args)
   })
 
 puppylog.parse()

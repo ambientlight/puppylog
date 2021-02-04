@@ -17,7 +17,7 @@ import * as ConnectionPool from './ConnectionPool'
  * 
  * generated LogStream entity stores the byte size of already procesed logs 
  */
-const inject = async (args: { source: string }, keepPoolOpen = false) => {
+const inject = async (args: { source: string, now: boolean, redirect_psql_out: boolean }, keepPoolOpen = false) => {
   let logStream = await LogStream.query(args.source)
   if(logStream === null){
     // no log stream found, lets create a new one
@@ -42,20 +42,31 @@ const inject = async (args: { source: string }, keepPoolOpen = false) => {
     })
     readStream
       .pipe(es.split())
-      .pipe(es.mapSync((line: string) => LogRecord.fromCLF(logStream!.id!, line)))
+      .pipe(es.mapSync((line: string) => LogRecord.fromCLF(logStream!.id!, line, args.now)))
       // FIXME: for now we just skip invalid lines, better redirect to stderr
       .pipe((es as any).filterSync((entry: LogRecord | null) => entry !== null))
       .pipe(es.map((entry: LogRecord, cb: any) => {
+        // console.log(`injected LogRecord(${entry.ts})`)
         cb(null, entry.createQuery() + '\n')
       }))
       .pipe(psql.stdin)
+
+    psql.on('end', () => {})
+    psql.on('error', (err) => console.error(err))
+    if(args.redirect_psql_out){
+      psql.stdout.pipe(process.stdout)
+    }
+    
+    psql.stderr.pipe(process.stderr)
 }
 
 const puppylog = program
   .description('Puppylog collector')
   .option('-s, --source <source path>', 'source log path', '/tmp/access.log')
   .option('-w, --watch', 'continiously monitor file changes', false)
-  .action(async (args: { source: string, watch: boolean }) => {
+  .option('-n, --now', 'replace timestamp in all logs to now', false)
+  .option('-r, --redirect_psql_out', 'redirect psql stdout to process.stdout', false)
+  .action(async (args: { source: string, watch: boolean, now: boolean, redirect_psql_out: boolean }) => {
     if(!existsSync(args.source)){
       console.error(`File does not exists at ${args.source}`)
       return
