@@ -170,32 +170,3 @@ LogRecords and Alert signal history are the only things that are persisted in fo
 * now only internal facing - we will need a backend layer with Auth since clients are now directly facing the DB and can do whatever.
 * integrate a popular visualization tool on top like graphana, that should integrate ok with kubernetes setup
 * Build out functionality for loggroups since several applications likely will have a set of log files to stream from (loggroups exist in the model but no functionality associate with it)
-
-
-# TODOS:
-
-### st0
-- [X] Data models: LogGroups, LogStreams, LogRecord, AlertHistory
-- [X] Bash scripts for the above data models, continious aggregates
-- [X] Crude base script that reads line-by-line space delimited logs sequentially and dumps into timescale 
-- [X] Make sure that continious aggregates that sample every 10seconds have reasonable perf on large injection - simple count metrics
-- [X] Database queries for formatted metrics: most hits - top 10 of COUNT metric for each root subpath. Materialized view for each url root subpath? ok as longs as sane num of them.
-
-### st1
-- [ ] dep on time, typescript or reasonml revamps for bash scripts ~~with knex.js~~, no knex.js as most of timescale things we need are not wrapped there, lets use templates with sql
-- [X] fetch latest timestamp and only parse logs after timestamp
-- [X] allow running injector in the continiously
-- [ ] allow running injector as daemon under systemd
-- [ ] allow customizing input log file, clf format in logs, filter out invalid log lines, don't crash on them, dump invalid lines to stderr
-- [ ]  basic textual tabular alert view with a seperate console tool
-- [ ]  basic test coverage
-
-### st2
-- [ ] wrappers for pubsub
-- [X] alert recovered in stateless query
-- [X] continiously rewrite the stdout if possible
-- [X] Explain better the choice of timescale in README
-- [ ] load test (with screen capture)
-
-### st3
-- [ ] integrate graphana on top
