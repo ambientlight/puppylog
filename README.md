@@ -1,6 +1,6 @@
 ## Puppylog
 
-A tiny distributed log collector and monitor build on top of timescaledb 2.0
+Exploration project (not for production use). A tiny distributed log collector build on top of timescaledb 2.0. 
 
 ## Installation
 
@@ -135,20 +135,6 @@ monitor alerts get <alert name>
 monitor alerts meta <alert name>
 ```
 
-## Requirements
-
-- [X] It should default to reading /tmp/access.log and be overrideable
-- [X] Display stats every 10s about the traffic during those 10s: the sections of the web site with the most hits, as well as interesting summary statistics on the traffic as a whole. A section is defined as being what's before the second '/' in the resource section of the log line. For example, the section for "/pages/create" is "/pages"
-
-- [X] Make sure a user can keep the app running and monitor the log file continuously
-
-- [X] Whenever total traffic for the past 2 minutes exceeds a certain number on average, print or display a message saying that “High traffic generated an alert - hits = {value}, triggered at {time}”. The default threshold should be 10 requests per second, and should be overridable
-
-- [X] Whenever the total traffic drops again below that value on average for the past 2 minutes, print or display another message detailing when the alert recovered
-
-- [ ] Write a test for the alerting logic (not yet:( )
-- [X] Explain how you’d improve on this application design
-
 ## Architecture
 
 Timescaledb has been selected as database backend for this as it is generally a reasonable datastore purposely-build to store and scale timeseries data in timebased chunks (hypertables). With the release of timescaledb 2.0 we can have an out-of-the box multinode setup making seting a scalable infra way easier.
@@ -166,7 +152,6 @@ LogRecords and Alert signal history are the only things that are persisted in fo
 ## Further improvements
 * allow adding custom alerts
 * delete functionality for alerts and metrics
-* This is logger has scalability in mind though I haven't tested kubernetes setup much (I have preconfigured cluster here), this needs larger and better scalability tests
-* now only internal facing - we will need a backend layer with Auth since clients are now directly facing the DB and can do whatever.
+* has scalability in mind though I haven't tested kubernetes setup much, this needs better scalability tests
 * integrate a popular visualization tool on top like graphana, that should integrate ok with kubernetes setup
 * Build out functionality for loggroups since several applications likely will have a set of log files to stream from (loggroups exist in the model but no functionality associate with it)
